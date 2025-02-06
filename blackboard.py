@@ -33,6 +33,7 @@ pygame.display.set_caption("Chiptune Music Sequencer")
 SLIDER_WIDTH, SLIDER_HEIGHT = 300, 10
 SLIDER_MIN, SLIDER_MAX = SLIDER_MIN_VALUE, SLIDER_MAX_VALUE
 slider_value = INITIAL_GRID_COLS
+font = pygame.font.Font(None, 36)
 
 
 def draw_slider():
@@ -43,6 +44,9 @@ def draw_slider():
     handle_x = slider_x + ((slider_value - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * SLIDER_WIDTH
     pygame.draw.circle(screen, BLUE, (int(handle_x), slider_y + SLIDER_HEIGHT // 2), 8)
 
+    # Display the current grid column number
+    value_text = font.render(f"Cols: {slider_value}", True, BLACK)
+    screen.blit(value_text, (slider_x + SLIDER_WIDTH + 10, slider_y - 10))
 
 def update_grid():
     """Updates the grid size based on the slider value, keeping the first column fixed at 30% position."""
