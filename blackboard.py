@@ -4,8 +4,8 @@ import pygame
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 800, 400  # Window size
-GRID_ROWS = 4  # Number of instruments (tracks)
+WIDTH, HEIGHT = 800, 1200  # Window size
+GRID_ROWS = 16  # Number of instruments (tracks)
 GRID_COLS = 16  # Number of time steps
 CELL_SIZE = 40  # Size of each grid cell
 GRID_WIDTH = GRID_COLS * CELL_SIZE
