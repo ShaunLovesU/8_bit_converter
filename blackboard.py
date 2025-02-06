@@ -1,14 +1,18 @@
 import pygame
-# Shawn Z
+
 # Initialize Pygame
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 1000, 1000  # Initial window size
+WIDTH, HEIGHT = 1500, 1000  # Initial window size
 GRID_ROWS = 16  # Number of instruments (tracks)
 INITIAL_GRID_COLS = 16  # Initial number of time steps
 CELL_SIZE = 40  # Size of each grid cell
 FIXED_COL_X_RATIO = 0.1  # Fixed first column at 30% of the window width
+
+# Slider range variables
+SLIDER_MIN_VALUE = 4
+SLIDER_MAX_VALUE = 32
 
 
 def get_fixed_col_x():
@@ -27,7 +31,7 @@ pygame.display.set_caption("Chiptune Music Sequencer")
 
 # Slider properties
 SLIDER_WIDTH, SLIDER_HEIGHT = 300, 10
-SLIDER_MIN, SLIDER_MAX = 4, 32
+SLIDER_MIN, SLIDER_MAX = SLIDER_MIN_VALUE, SLIDER_MAX_VALUE
 slider_value = INITIAL_GRID_COLS
 
 
