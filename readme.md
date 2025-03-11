@@ -1,4 +1,5 @@
-This is a project for CSC575/CSC475 
-This project aims to This project aims to develop a Live MIDI Performance & Visualization System that combines real-time MIDI music generation from a computer keyboard or MIDI controller with a dynamic visualizer for live performances, DJ sets, or interactive music shows.
+"This is a project for CSC575/CSC475.
 
-Users will be able to play MIDI notes using a standard keyboard, generate loops and beats, and see real-time animations that respond to the music. The visualizations will be synchronized with MIDI input, making it a useful tool for electronic musicians, DJs, and VJs (visual jockeys).
+The goal of this project is to develop an 8-bit style music sequencer that allows users to generate 8-bit music using only mouse clicks. Additionally, it integrates pixel art with 8-bit music, creating a visually and sonically cohesive experience.
+
+We leverage square wave generation based on Music Information Retrieval (MIR) concepts and apply different envelopes to produce various styles of 8-bit music."
