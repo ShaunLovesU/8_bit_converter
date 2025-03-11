@@ -72,7 +72,7 @@ def draw_grid(play_col=None):
         for row in range(GRID_ROWS):
             x = fixed_col_x + play_col * CELL_SIZE
             y = top_offset + row * CELL_SIZE
-            pygame.draw.rect(screen, (200, 230, 255, 120), (x, y, CELL_SIZE, CELL_SIZE))  # 半透明 LIGHT_BLUE
+            pygame.draw.rect(screen, (200, 230, 255, 120), (x, y, CELL_SIZE, CELL_SIZE))  
 
     for row in range(GRID_ROWS):
         for col in range(slider_columns):
