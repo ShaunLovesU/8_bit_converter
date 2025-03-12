@@ -1,115 +1,144 @@
-import pygame
+import mido
+from mido import MidiFile
+import sounddevice as sd
+import numpy as np
+from scipy import signal
+from scipy.signal import butter, lfilter
 
-# Initialize Pygame
-pygame.init()
+def parse_midi(file_path):
+    '''
+    Parse MIDI file
 
-# Constants
-WIDTH, HEIGHT = 1500, 1000  # Initial window size
-GRID_ROWS = 16  # Number of instruments (tracks)
-INITIAL_GRID_COLS = 16  # Initial number of time steps
-CELL_SIZE = 40  # Size of each grid cell
-FIXED_COL_X_RATIO = 0.1  # Fixed first column at 30% of the window width
+    :param file_path:
+    :return: list containing MIDI information (start_time, duration, pitch)
+    '''
+    mid = MidiFile(file_path)
+    ticks_per_beat = mid.ticks_per_beat
+    tempo = 500000
 
-# Slider range variables
-SLIDER_MIN_VALUE = 4
-SLIDER_MAX_VALUE = 32
+    events = []
+    for track in mid.tracks:
+        abs_time = 0
+        for msg in track:
+            abs_time += msg.time
+            events.append((abs_time, msg))
 
+    # sort the event by absolute time line
+    events.sort(key=lambda x: x[0])
 
-def get_fixed_col_x():
-    return int(WIDTH * FIXED_COL_X_RATIO)
+    current_time = 0.0
+    current_tempo = tempo
+    prev_abs_ticks = 0
+    active_notes = {}
+    notes = []
 
+    for abs_ticks, msg in events:
+        delta_ticks = abs_ticks - prev_abs_ticks
+        prev_abs_ticks = abs_ticks
+        delta_seconds = mido.tick2second(delta_ticks, ticks_per_beat, current_tempo)
+        current_time += delta_seconds
 
-# Colors
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-GRAY = (200, 200, 200)
-BLUE = (0, 100, 255)
+        if msg.type == 'set_tempo':
+            current_tempo = msg.tempo
+        elif msg.type == 'note_on' and msg.velocity > 0:
+            key = (msg.channel, msg.note)
+            active_notes[key] = current_time
+        elif msg.type in ['note_off', 'note_on'] and (msg.velocity == 0 or msg.type == 'note_off'):
+            key = (msg.channel, msg.note)
+            if key in active_notes:
+                start = active_notes.pop(key)
+                notes.append((start, current_time - start, msg.note))
 
-# Create window
-screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
-pygame.display.set_caption("Chiptune Music Sequencer")
-
-# Slider properties
-SLIDER_WIDTH, SLIDER_HEIGHT = 300, 10
-SLIDER_MIN, SLIDER_MAX = SLIDER_MIN_VALUE, SLIDER_MAX_VALUE
-slider_value = INITIAL_GRID_COLS
-font = pygame.font.Font(None, 36)
-
-
-def draw_slider():
-    """Draws the slider for adjusting the number of columns."""
-    slider_x = 50  # Keep slider at the bottom left
-    slider_y = HEIGHT - 50  # Always below the grid
-    pygame.draw.rect(screen, BLACK, (slider_x, slider_y, SLIDER_WIDTH, SLIDER_HEIGHT))
-    handle_x = slider_x + ((slider_value - SLIDER_MIN) / (SLIDER_MAX - SLIDER_MIN)) * SLIDER_WIDTH
-    pygame.draw.circle(screen, BLUE, (int(handle_x), slider_y + SLIDER_HEIGHT // 2), 8)
-
-    # Display the current grid column number
-    value_text = font.render(f"Cols: {slider_value}", True, BLACK)
-    screen.blit(value_text, (slider_x + SLIDER_WIDTH + 10, slider_y - 10))
-
-def update_grid():
-    """Updates the grid size based on the slider value, keeping the first column fixed at 30% position."""
-    global grid, GRID_COLS, GRID_X
-    GRID_COLS = slider_value
-    GRID_X = get_fixed_col_x() + CELL_SIZE  # The second column starts right after the fixed column
-    for row in range(GRID_ROWS):
-        grid[row] = grid[row][:1] + [0] * (GRID_COLS - 1)
+    return sorted(notes, key=lambda x: x[0])
 
 
-def draw_grid():
-    """Draws the sequencer grid with the first column fixed at 30% position."""
-    fixed_col_x = get_fixed_col_x()
-    for row in range(GRID_ROWS):
-        for col in range(GRID_COLS):
-            x = GRID_X + (col - 1) * CELL_SIZE if col > 0 else fixed_col_x
-            y = (HEIGHT - GRID_ROWS * CELL_SIZE - 60) // 2 + row * CELL_SIZE  # Ensure grid doesn't cover the slider
-            color = BLUE if grid[row][col] else WHITE
-            pygame.draw.rect(screen, color, (x, y, CELL_SIZE, CELL_SIZE))
-            pygame.draw.rect(screen, BLACK, (x, y, CELL_SIZE, CELL_SIZE), 2)
+def generate_audio(notes, sample_rate=44100, noise_ratio=0.1,
+                   adsr_params=(0.01, 0.1, 0.7, 0.1)):
+    """
+    Generate the mix wave including a symple ADSR and noise control
 
+    param：
+    - notes: (start_time, duration, pitch)
+    - sample_rate: default 44100
+    - noise_ratio:（0.0-1.0）
+    - adsr_params: (attack_time, decay_time, sustain_level, release_time)
 
-def handle_mouse_click(pos):
-    """Handles mouse click to toggle notes or adjust the slider."""
-    x, y = pos
-    slider_x = 50  # Match the slider position
-    slider_y = HEIGHT - 50
-    if slider_x <= x <= slider_x + SLIDER_WIDTH and slider_y - 10 <= y <= slider_y + SLIDER_HEIGHT + 10:
-        global slider_value
-        slider_value = int(SLIDER_MIN + ((x - slider_x) / SLIDER_WIDTH) * (SLIDER_MAX - SLIDER_MIN))
-        update_grid()
-    else:
-        col = (x - GRID_X) // CELL_SIZE + 1 if x > GRID_X else 0
-        row = (y - (HEIGHT - GRID_ROWS * CELL_SIZE - 60) // 2) // CELL_SIZE
-        if 0 <= row < GRID_ROWS and 0 <= col < GRID_COLS:
-            grid[row][col] = 1 - grid[row][col]  # Toggle on/off
+    return：
+    audio list
+    """
+    if not notes:
+        return np.zeros(0)
 
+    max_time = max(start + dur for start, dur, _ in notes)
+    audio = np.zeros(int(np.ceil(max_time * sample_rate)) + 1)
 
-def main():
-    """Main loop."""
-    global grid, WIDTH, HEIGHT, screen
-    grid = [[0 for _ in range(INITIAL_GRID_COLS)] for _ in range(GRID_ROWS)]
-    update_grid()
-    running = True
-    while running:
-        screen.fill(GRAY)
-        draw_grid()
-        draw_slider()
+    attack_time, decay_time, sustain_level, release_time = adsr_params
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            elif event.type == pygame.VIDEORESIZE:
-                WIDTH, HEIGHT = event.w, event.h
-                screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
-                update_grid()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                handle_mouse_click(event.pos)
+    # mixed wave ratio, can modify it to simulate NES or other old game console
+    wave_ratios = {
+        'square': 0.45,
+        'triangle': 0.45,
+        'noise': noise_ratio
+    }
+    def lowpass_filter(data, cutoff=2000, order=4):
+        nyq = 0.5 * sample_rate
+        normal_cutoff = cutoff / nyq
+        b, a = butter(order, normal_cutoff, btype='low')
+        return lfilter(b, a, data)
 
-        pygame.display.flip()
+    for start, dur, pitch in notes:
+        freq = 440 * 2 ** ((pitch - 69) / 12)
+        start_sample = int(start * sample_rate)
+        end_sample = int((start + dur) * sample_rate)
+        total_samples = end_sample - start_sample
+        if total_samples <= 0:
+            continue
+        t = np.linspace(0, dur, total_samples, False)
+        square = 0.6 * signal.square(2 * np.pi * freq * t, duty=0.5) #generate square wave
+        triangle = 0.6 * signal.sawtooth(2 * np.pi * freq * t, 0.5) #generate triangle wave
+        noise = np.random.normal(0, 0.3, total_samples)
+        noise = lowpass_filter(noise, cutoff=3000) * 0.5
+        mixed = (
+                square * wave_ratios['square'] +
+                triangle * wave_ratios['triangle'] +
+                noise * wave_ratios['noise']
+        )
+        envelope = np.ones(total_samples)
+        attack_samples = min(int(attack_time * sample_rate), total_samples)
+        remaining = total_samples - attack_samples
+        decay_samples = min(int(decay_time * sample_rate), remaining)
+        remaining -= decay_samples
+        release_samples = min(int(release_time * sample_rate), total_samples)
+        sustain_samples = max(0, total_samples - attack_samples - decay_samples - release_samples)
+        if attack_samples > 0:
+            envelope[:attack_samples] = np.linspace(0, 1, attack_samples)
+        if decay_samples > 0:
+            decay_start = attack_samples
+            decay_end = decay_start + decay_samples
+            envelope[decay_start:decay_end] = np.linspace(1, sustain_level, decay_samples)
+        if sustain_samples > 0:
+            sustain_start = attack_samples + decay_samples
+            envelope[sustain_start:-release_samples] = sustain_level
+        if release_samples > 0:
+            release_start = max(0, total_samples - release_samples)
+            env_slice = envelope[release_start:]
+            env_slice *= np.linspace(1, 0, release_samples)
+        mixed *= envelope
+        buffer_end = start_sample + total_samples
+        if buffer_end > len(audio):
+            mixed = mixed[:len(audio) - start_sample]
+            buffer_end = len(audio)
+        audio[start_sample:buffer_end] += mixed
+    peak = np.max(np.abs(audio))
+    if peak > 0:
+        audio /= peak * 1.4
 
-    pygame.quit()
+    return audio
+if __name__ == '__main__':
+    midi_file = 'dataset/Lemon-Tree.mid'  # 替换为你的MIDI文件路径
+    notes = parse_midi(midi_file)
+    audio = generate_audio(notes)
 
-
-if __name__ == "__main__":
-    main()
+    # 播放音频
+    sd.play(audio, 44100)
+    sd.wait()
