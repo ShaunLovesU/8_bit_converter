@@ -76,10 +76,14 @@ def generate_audio(notes, sample_rate=44100, noise_ratio=0.1,
 
     # mixed wave ratio, can modify it to simulate NES or other old game console
     wave_ratios = {
-        'square': 0.45,
-        'triangle': 0.45,
+        'square': 0.75,
+        'triangle': 0.3,
         'noise': noise_ratio
     }
+
+
+
+
     def lowpass_filter(data, cutoff=2000, order=4):
         nyq = 0.5 * sample_rate
         normal_cutoff = cutoff / nyq
@@ -98,11 +102,18 @@ def generate_audio(notes, sample_rate=44100, noise_ratio=0.1,
         triangle = 0.6 * signal.sawtooth(2 * np.pi * freq * t, 0.5) #generate triangle wave
         noise = np.random.normal(0, 0.3, total_samples)
         noise = lowpass_filter(noise, cutoff=3000) * 0.5
+
+        # Control the ratio of different wave.
+
         mixed = (
                 square * wave_ratios['square'] +
                 triangle * wave_ratios['triangle'] +
                 noise * wave_ratios['noise']
         )
+
+
+
+
         envelope = np.ones(total_samples)
         attack_samples = min(int(attack_time * sample_rate), total_samples)
         remaining = total_samples - attack_samples
@@ -129,6 +140,7 @@ def generate_audio(notes, sample_rate=44100, noise_ratio=0.1,
             mixed = mixed[:len(audio) - start_sample]
             buffer_end = len(audio)
         audio[start_sample:buffer_end] += mixed
+    #     Lower the peak noise
     peak = np.max(np.abs(audio))
     if peak > 0:
         audio /= peak * 1.4
