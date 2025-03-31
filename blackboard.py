@@ -4,7 +4,6 @@ import sounddevice as sd
 import numpy as np
 from scipy import signal
 from scipy.signal import butter, lfilter
-import soundfile as sf
 
 def parse_midi(file_path):
     '''
@@ -147,21 +146,11 @@ def generate_audio(notes, sample_rate=44100, noise_ratio=0.1,
         audio /= peak * 1.4
 
     return audio
-
-
-def save_audio(audio, sample_rate=44100, file_path="output.wav"):
-    sf.write(file_path, audio, sample_rate)
-    
-    
-
 if __name__ == '__main__':
     midi_file = 'dataset/Lemon-Tree.mid'  
     notes = parse_midi(midi_file)
     audio = generate_audio(notes)
 
-    
-    # sd.play(audio, 44100)
-    # sd.wait()
-    
-    save_audio(audio, file_path="output.wav")
-    
+    # 播放音频
+    sd.play(audio, 44100)
+    sd.wait()
