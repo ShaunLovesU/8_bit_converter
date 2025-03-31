@@ -160,7 +160,7 @@ def upload_midi():
     root = tk.Tk()
     root.withdraw()
     
-    file_path = input("Enter path to MIDI file (.mid): ").strip()
+    file_path = filedialog.askopenfilename(filetypes=[("MIDI files", "*.mid")])
 
     if file_path:
         update_status("Uploading MIDI file...")
@@ -181,7 +181,7 @@ def download_audio():
         status_message = "Saving the file..."
         update_status("Saving the file...")
 
-        save_path = input("Enter path to save WAV file (e.g., output.wav): ").strip()
+        save_path = filedialog.asksaveasfilename(defaultextension=".wav", filetypes=[("WAV files", "*.wav")])
         if save_path:
             sf.write(save_path, generated_audio, samplerate=44100)
 
