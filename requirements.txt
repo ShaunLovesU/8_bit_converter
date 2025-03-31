@@ -1,6 +1,5 @@
 pygame
 soundfile
-tk
 mido
 sounddevice
 numpy

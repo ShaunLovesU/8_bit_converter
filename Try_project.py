@@ -160,7 +160,8 @@ def upload_midi():
     root = tk.Tk()
     root.withdraw()
     
-    file_path = filedialog.askopenfilename(filetypes=[("MIDI files", "*.mid")])
+    file_path = input("Enter path to MIDI file (.mid): ").strip()
+
     if file_path:
         update_status("Uploading MIDI file...")
         uploaded_midi = file_path
@@ -180,7 +181,7 @@ def download_audio():
         status_message = "Saving the file..."
         update_status("Saving the file...")
 
-        save_path = filedialog.asksaveasfilename(defaultextension=".wav", filetypes=[("WAV files", "*.wav")])
+        save_path = input("Enter path to save WAV file (e.g., output.wav): ").strip()
         if save_path:
             sf.write(save_path, generated_audio, samplerate=44100)
 
@@ -209,7 +210,7 @@ def handle_mouse_click(pos):
         slider_columns = SLIDER_MIN_COLUMNS + int((x - 650) / 300 * (SLIDER_MAX_COLUMNS - SLIDER_MIN_COLUMNS))
         slider_columns = max(SLIDER_MIN_COLUMNS, min(SLIDER_MAX_COLUMNS, slider_columns))
         update_grid_size(slider_columns)
-    elif slider_bps_box.collidepoint(x, y):  
+    elif slider_bps_box.collidepoint(x, y):
         slider_bps = SLIDER_MIN_BPS + int((x - 650) / 300 * (SLIDER_MAX_BPS - SLIDER_MIN_BPS))
         slider_bps = max(SLIDER_MIN_BPS, min(SLIDER_MAX_BPS, slider_bps))
         bps = slider_bps
