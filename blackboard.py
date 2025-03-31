@@ -155,7 +155,7 @@ def save_audio(audio, sample_rate=44100, file_path="output.wav"):
     
 
 if __name__ == '__main__':
-    midi_file = 'dataset/Lemon-Tree.mid'  # 替换为你的MIDI文件路径
+    midi_file = 'dataset/Lemon-Tree.mid'  
     notes = parse_midi(midi_file)
     audio = generate_audio(notes)
 
