@@ -1,1 +1,1 @@
-THis project is aim to develop a automate tool for converting pop music to 8-bits style. We that the input of midi file, and extract all necessary information using librosa, and simulate waves and channels that 8-bits music need.
+This project aims to develop an automated tool that converts pop music into an 8-bit style. We take a MIDI file as input, extract all necessary musical information using Librosa, and simulate the waveforms and audio channels characteristic of 8-bit music.
