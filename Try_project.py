@@ -180,7 +180,7 @@ def handle_mouse_click(pos):
         if playbar_x is None:
             playbar_x = get_fixed_col_x()
             last_update_time = time.time()
-            play_column(0)  # 播放第 0 列
+            play_column(0) 
         is_playing = True
     elif stop_button.collidepoint(x, y):
         is_playing = False
