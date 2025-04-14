@@ -26,6 +26,9 @@ INITIAL_GRID_COLS = 16
 CELL_SIZE = 40
 FIXED_COL_X_RATIO = 0.1
 
+background_image = pygame.image.load("background.png")
+background_image = pygame.transform.scale(background_image, (WIDTH, HEIGHT))
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 pygame.display.set_caption("PixelTone - 8-bit Music Sequencer")
 font = pygame.font.Font(None, 36)
@@ -98,7 +101,7 @@ def draw_grid(play_col=None):
     fixed_col_x = get_fixed_col_x()
     top_offset = (HEIGHT - GRID_ROWS * CELL_SIZE - 160) // 2
 
-    title_text = title_font.render("PixelTone - 8-bit Music Sequencer", True, (0, 0, 0))
+    title_text = title_font.render("PixelTone - 8-bit Music Sequencer", True, (225, 225, 225))
     screen.blit(title_text, (fixed_col_x, top_offset - 60))
 
     grid_surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -207,7 +210,7 @@ def main():
     global playbar_x, last_update_time, is_playing, slider_columns, slider_bps, bps, playbar_interval, dragging_slider, status_reset_delay
     running = True
     while running:
-        screen.fill((200, 200, 200))
+        screen.blit(background_image, (0, 0))
         col = (playbar_x - get_fixed_col_x()) // CELL_SIZE if playbar_x is not None else None
         draw_grid(col)
         draw_controls()
