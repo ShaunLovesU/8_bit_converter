@@ -188,6 +188,7 @@ def upload_midi():
     root = tk.Tk()
     root.withdraw()
     file_path = filedialog.askopenfilename(filetypes=[("MIDI files", "*.mid")])
+
     if file_path:
         show_status_now("Uploading MIDI file...")
         uploaded_midi = file_path
@@ -229,6 +230,7 @@ def handle_mouse_click(pos):
     elif stop_button.collidepoint(x, y):
         is_playing = False
     elif clear_button.collidepoint(x, y):
+
         is_playing = False
         for r in range(GRID_ROWS):
             for c in range(slider_columns):
@@ -238,6 +240,17 @@ def handle_mouse_click(pos):
         dragging_slider = "columns"
     elif slider_bps_box.collidepoint(x, y):
         dragging_slider = "bps"
+        grid = [[0 for _ in range(slider_columns)] for _ in range(GRID_ROWS)]
+    elif slider_columns_box.collidepoint(x, y):  
+        slider_columns = SLIDER_MIN_COLUMNS + int((x - 650) / 300 * (SLIDER_MAX_COLUMNS - SLIDER_MIN_COLUMNS))
+        slider_columns = max(SLIDER_MIN_COLUMNS, min(SLIDER_MAX_COLUMNS, slider_columns))
+        update_grid_size(slider_columns)
+    elif slider_bps_box.collidepoint(x, y):
+        slider_bps = SLIDER_MIN_BPS + int((x - 650) / 300 * (SLIDER_MAX_BPS - SLIDER_MIN_BPS))
+        slider_bps = max(SLIDER_MIN_BPS, min(SLIDER_MAX_BPS, slider_bps))
+        bps = slider_bps
+        playbar_interval = 1 / bps
+        
     elif upload_button.collidepoint(x, y):
         upload_midi()
     elif download_button.collidepoint(x, y):

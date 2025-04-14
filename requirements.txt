@@ -1,0 +1,6 @@
+pygame
+soundfile
+mido
+sounddevice
+numpy
+scipy
