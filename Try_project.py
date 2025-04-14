@@ -4,11 +4,13 @@ import numpy as np
 import soundfile as sf
 import tkinter as tk
 from tkinter import filedialog
+from scipy.signal import butter, sosfilt
 from blackboard import parse_midi, generate_audio
 
 pygame.init()
 pygame.mixer.init()
 
+# Color settings
 DARK_BG = (30, 30, 30)
 LIGHT_GRID = (70, 70, 70)
 HIGHLIGHT_RGBA = (100, 180, 255, 100)
@@ -19,7 +21,10 @@ BUTTON_STOP = (244, 67, 54)
 BUTTON_CLEAR = (255, 87, 34)
 BUTTON_UPLOAD = (0, 188, 212)
 BUTTON_DOWNLOAD = (255, 235, 59)
+BUTTON_STYLE = (120, 120, 120)
+BUTTON_SELECTED = (220, 220, 100)
 
+# Window and grid settings
 WIDTH, HEIGHT = 1500, 1000
 GRID_ROWS = 16
 INITIAL_GRID_COLS = 16
@@ -53,13 +58,39 @@ grid = [[0 for _ in range(INITIAL_GRID_COLS)] for _ in range(GRID_ROWS)]
 
 FREQUENCIES = [523, 494, 466, 440, 392, 349, 330, 294, 262, 247, 220, 196, 175, 165, 147, 131]
 
-def generate_square_wave(freq, duration=0.2, sample_rate=44100):
+SOUND_STYLES = ["Default", "GameBoy", "NES"]
+current_sound_style = "NES"
+style_buttons = [pygame.Rect(15, 320 + i * 50, 120, 40) for i in range(len(SOUND_STYLES))]
+
+def generate_default_square_wave(freq, duration=0.3, sample_rate=44100):
     t = np.linspace(0, duration, int(sample_rate * duration), False)
     wave = 0.5 * (1 + np.sign(np.sin(2 * np.pi * freq * t)))
-    wave = (wave * 32767).astype(np.int16)
-    return pygame.mixer.Sound(buffer=wave.tobytes())
+    return pygame.mixer.Sound(buffer=(wave * 32767).astype(np.int16).tobytes())
 
-SOUNDS = [generate_square_wave(freq) for freq in FREQUENCIES]
+def generate_gameboy_wave(freq, duration=0.3, sample_rate=44100):
+    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    wave = 0.5 * (1 + np.sign(np.sin(2 * np.pi * freq * t)))
+    envelope = np.exp(-5 * t)
+    wave *= envelope
+    return pygame.mixer.Sound(buffer=(wave * 32767).astype(np.int16).tobytes())
+
+def generate_nes_triangle_wave(freq, duration=0.3, sample_rate=44100):
+    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    wave = 2 * np.abs(2 * ((freq * t) % 1) - 1) - 1
+    envelope = np.exp(-5 * t)
+    wave *= envelope
+    return pygame.mixer.Sound(buffer=(wave * 32767).astype(np.int16).tobytes())
+
+def regenerate_sounds():
+    global SOUNDS
+    if current_sound_style == "Default":
+        SOUNDS = [generate_default_square_wave(f) for f in FREQUENCIES]
+    elif current_sound_style == "GameBoy":
+        SOUNDS = [generate_gameboy_wave(f) for f in FREQUENCIES]
+    elif current_sound_style == "NES":
+        SOUNDS = [generate_nes_triangle_wave(f) for f in FREQUENCIES]
+
+regenerate_sounds()
 
 def update_grid_size(new_cols):
     global grid
@@ -146,6 +177,12 @@ def draw_controls():
     status_text = small_font.render(status_message, True, BUTTON_TEXT)
     screen.blit(status_text, (upload_button.x, upload_button.y - 25))
 
+    for i, rect in enumerate(style_buttons):
+        style = SOUND_STYLES[i]
+        pygame.draw.rect(screen, BUTTON_SELECTED if style == current_sound_style else BUTTON_STYLE, rect, border_radius=6)
+        label = small_font.render(style, True, BUTTON_TEXT)
+        screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+
 def upload_midi():
     global uploaded_midi, generated_audio
     root = tk.Tk()
@@ -174,13 +211,20 @@ def play_column(col):
             SOUNDS[row].play()
 
 def handle_mouse_click(pos):
-    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time
+    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style
     x, y = pos
+    for i, rect in enumerate(style_buttons):
+        if rect.collidepoint(x, y):
+            current_sound_style = SOUND_STYLES[i]
+            regenerate_sounds()
+            update_status(f"Switched to {current_sound_style} style")
+            return
+
     if play_button.collidepoint(x, y):
         if playbar_x is None:
             playbar_x = get_fixed_col_x()
             last_update_time = time.time()
-            play_column(0) 
+            play_column(0)
         is_playing = True
     elif stop_button.collidepoint(x, y):
         is_playing = False
