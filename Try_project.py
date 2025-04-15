@@ -6,9 +6,17 @@ import tkinter as tk
 from tkinter import filedialog
 from scipy.signal import butter, sosfilt
 from blackboard import parse_midi, generate_audio
+import os
+
 
 pygame.init()
 pygame.mixer.init()
+
+
+file_browser_active = False
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+file_browser_scroll = 0
 
 # Color settings
 DARK_BG = (30, 30, 30)
@@ -45,6 +53,8 @@ bps = 2
 playbar_x = None
 playbar_interval = 1 / bps
 last_update_time = time.time()
+is_generated_audio_playing = False
+
 
 SLIDER_MIN_COLUMNS = 4
 SLIDER_MAX_COLUMNS = 32
@@ -61,6 +71,17 @@ FREQUENCIES = [523, 494, 466, 440, 392, 349, 330, 294, 262, 247, 220, 196, 175, 
 SOUND_STYLES = ["Default", "GameBoy", "NES"]
 current_sound_style = "NES"
 style_buttons = [pygame.Rect(15, 320 + i * 50, 120, 40) for i in range(len(SOUND_STYLES))]
+
+
+def safe_file_dialog(func, *args, **kwargs):
+    import tkinter as tk
+    from tkinter import filedialog
+    root = tk.Tk()
+    root.withdraw()
+    result = func(*args, **kwargs)
+    root.destroy()
+    return result
+
 
 def generate_default_square_wave(freq, duration=0.3, sample_rate=44100):
     t = np.linspace(0, duration, int(sample_rate * duration), False)
@@ -92,6 +113,17 @@ def regenerate_sounds():
 
 regenerate_sounds()
 
+def handle_style_selection(pos):
+    global current_sound_style
+    for i, rect in enumerate(style_buttons):
+        if rect.collidepoint(pos):
+            current_sound_style = SOUND_STYLES[i]
+            regenerate_sounds()
+            update_status(f"Switched to {current_sound_style} style")
+            return True
+    return False
+
+
 def update_grid_size(new_cols):
     global grid
     for r in range(GRID_ROWS):
@@ -119,10 +151,18 @@ def show_status_now(message):
 play_button = pygame.Rect(50, HEIGHT - 80, 100, 50)
 stop_button = pygame.Rect(170, HEIGHT - 80, 100, 50)
 clear_button = pygame.Rect(290, HEIGHT - 80, 100, 50)
-slider_columns_box = pygame.Rect(470, HEIGHT - 80, 300, 10)
-slider_bps_box = pygame.Rect(470, HEIGHT - 40, 300, 10)
-upload_button = pygame.Rect(1150, HEIGHT - 80, 130, 50)
-download_button = pygame.Rect(1300, HEIGHT - 80, 150, 50)
+slider_columns_box = pygame.Rect(490, HEIGHT - 80, 300, 10)
+slider_bps_box = pygame.Rect(480, HEIGHT - 40, 300, 10)
+
+
+button_w = 100
+button_h = 50
+gap = 20
+x_base = 1000
+play_generated_button = pygame.Rect(x_base + 0 * (button_w + gap), HEIGHT - 80, button_w, button_h)
+cancel_generated_button = pygame.Rect(x_base + 1 * (button_w + gap), HEIGHT - 80, button_w, button_h)
+upload_button = pygame.Rect(x_base + 2 * (button_w + gap), HEIGHT - 80, button_w, button_h)
+download_button = pygame.Rect(x_base + 3 * (button_w + gap), HEIGHT - 80, button_w, button_h)
 
 uploaded_midi = None
 generated_audio = None
@@ -152,8 +192,11 @@ def draw_grid(play_col=None):
 
     screen.blit(grid_surface, (0, 0))
 
-def draw_button(rect, text, bg_color, text_color=BUTTON_TEXT):
-    color = tuple(min(255, c + 30) for c in bg_color) if rect.collidepoint(pygame.mouse.get_pos()) else bg_color
+def draw_button(rect, text, bg_color, text_color=BUTTON_TEXT, enabled=True):
+    if not enabled:
+        bg_color = (100, 100, 100)
+        text_color = (180, 180, 180)
+    color = tuple(min(255, c + 30) for c in bg_color) if rect.collidepoint(pygame.mouse.get_pos()) and enabled else bg_color
     pygame.draw.rect(screen, color, rect, border_radius=10)
     label = font.render(text, True, text_color)
     screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
@@ -165,17 +208,76 @@ def draw_slider(x, y, width, value, min_val, max_val, label):
     label_surf = font.render(f"{label}: {value}", True, BUTTON_TEXT)
     screen.blit(label_surf, (x + width + 20, y - 10))
 
+def draw_file_browser():
+    global current_dir, file_browser_scroll
+    pygame.draw.rect(screen, (30, 30, 30), (100, 100, WIDTH - 200, HEIGHT - 200))
+    pygame.draw.rect(screen, (255, 255, 255), (100, 100, WIDTH - 200, HEIGHT - 200), 2)
+
+    title = font.render("Select a MIDI File", True, (255, 255, 255))
+    screen.blit(title, (120, 110))
+    path_surf = small_font.render(current_dir, True, (200, 200, 200))
+    screen.blit(path_surf, (120, 150))
+
+    try:
+        all_items = ["../"] + sorted(os.listdir(current_dir))
+        items = []
+        for item in all_items:
+            full_path = os.path.abspath(os.path.join(current_dir, item))
+            if os.access(full_path, os.R_OK):
+                items.append(item)
+    except PermissionError:
+        items = ["../"]
+
+    visible_items = items[file_browser_scroll:file_browser_scroll + 20]
+    mouse_x, mouse_y = pygame.mouse.get_pos()
+
+    for i, item in enumerate(visible_items):
+        full_path = os.path.abspath(os.path.join(current_dir, item))
+        y = 180 + i * 30
+        if 120 <= mouse_x <= WIDTH - 100 and y <= mouse_y <= y + 30:
+            pygame.draw.rect(screen, (80, 80, 80), (120, y, WIDTH - 240, 30))
+
+        if item == "../":
+            color = (255, 255, 150)
+            label = "[../] (Up)"
+        elif os.path.isdir(full_path):
+            color = (255, 215, 0)
+            label = f"[{item}]"
+        elif item.endswith(".mid"):
+            color = (150, 255, 150)
+            label = item
+        else:
+            color = (120, 120, 120)
+            label = item
+
+        text = small_font.render(label, True, color)
+        screen.blit(text, (130, y + 5))
+
+
 def draw_controls():
     pygame.draw.rect(screen, (20, 20, 20), pygame.Rect(0, HEIGHT - 140, WIDTH, 160))
     draw_button(play_button, "Play", BUTTON_PLAY)
     draw_button(stop_button, "Stop", BUTTON_STOP)
     draw_button(clear_button, "Clear", BUTTON_CLEAR)
-    draw_button(upload_button, "Upload", BUTTON_UPLOAD)
-    draw_button(download_button, "Download", BUTTON_DOWNLOAD, text_color=(20, 20, 20))
-    draw_slider(470, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
-    draw_slider(470, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
+
+    if is_generated_audio_playing:
+        draw_button(cancel_generated_button, "Cancel", BUTTON_STOP, enabled=True)
+        draw_button(play_generated_button, "Play", BUTTON_PLAY, enabled=False)
+        draw_button(upload_button, "Upload", BUTTON_UPLOAD, enabled=False)
+        draw_button(download_button, "Save", BUTTON_DOWNLOAD, text_color=(200, 200, 200), enabled=False)
+    else:
+        draw_button(play_generated_button, "Play", BUTTON_PLAY)
+        draw_button(upload_button, "Upload", BUTTON_UPLOAD)
+        draw_button(download_button, "Save", BUTTON_DOWNLOAD, text_color=(20, 20, 20))
+        draw_button(cancel_generated_button, "Cancel", BUTTON_STOP, enabled=False)
+
+    draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
+    draw_slider(490, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
+
     status_text = small_font.render(status_message, True, BUTTON_TEXT)
-    screen.blit(status_text, (upload_button.x, upload_button.y - 25))
+    status_x = play_generated_button.x + 10
+    status_y = play_generated_button.y - 25
+    screen.blit(status_text, (status_x, status_y))
 
     for i, rect in enumerate(style_buttons):
         style = SOUND_STYLES[i]
@@ -183,78 +285,118 @@ def draw_controls():
         label = small_font.render(style, True, BUTTON_TEXT)
         screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
 
-def upload_midi():
-    global uploaded_midi, generated_audio
-    root = tk.Tk()
-    root.withdraw()
-    file_path = filedialog.askopenfilename(filetypes=[("MIDI files", "*.mid")])
+    
+        
 
-    if file_path:
-        show_status_now("Uploading MIDI file...")
-        uploaded_midi = file_path
-        show_status_now("Parsing MIDI file...")
-        notes = parse_midi(uploaded_midi)
-        show_status_now("Generating audio...")
-        generated_audio = generate_audio(notes)
-        update_status("Generation complete, Ready to Save.")
+    draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
+    draw_slider(490, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
+
+    status_text = small_font.render(status_message, True, BUTTON_TEXT)
+    status_x = play_generated_button.x + 10
+    status_y = play_generated_button.y - 25
+    screen.blit(status_text, (status_x, status_y))
+
+
+    for i, rect in enumerate(style_buttons):
+        style = SOUND_STYLES[i]
+        pygame.draw.rect(screen, BUTTON_SELECTED if style == current_sound_style else BUTTON_STYLE, rect, border_radius=6)
+        label = small_font.render(style, True, BUTTON_TEXT)
+        screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+
+        
+def upload_midi():
+    global file_browser_active
+    file_browser_active = True
+
+
+
 
 def download_audio():
-    if generated_audio is not None:
-        show_status_now("Saving the file...")
-        save_path = filedialog.asksaveasfilename(defaultextension=".wav", filetypes=[("WAV files", "*.wav")])
-        if save_path:
+    global current_dir, uploaded_midi,generated_audio
+
+    if generated_audio is not None and uploaded_midi is not None:
+        filename = os.path.splitext(os.path.basename(uploaded_midi))[0]
+        save_path = os.path.join(current_dir, f"{filename}_converted.wav")
+
+        try:
             sf.write(save_path, generated_audio, samplerate=44100)
-            update_status("Audio saved!", reset_after_seconds=8)
+            update_status(f"Saved to {filename}_converted.wav", reset_after_seconds=6)
+        except Exception as e:
+            update_status(f"Save failed: {e}", reset_after_seconds=6)
+    else:
+        update_status("No audio to save.", reset_after_seconds=4)
+
 
 def play_column(col):
     for row in range(GRID_ROWS):
         if col < len(grid[row]) and grid[row][col] == 1:
             SOUNDS[row].play()
 
-def handle_mouse_click(pos):
-    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style
-    x, y = pos
-    for i, rect in enumerate(style_buttons):
-        if rect.collidepoint(x, y):
-            current_sound_style = SOUND_STYLES[i]
-            regenerate_sounds()
-            update_status(f"Switched to {current_sound_style} style")
-            return
 
-    if play_button.collidepoint(x, y):
+def handle_mouse_click(pos):
+    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style, generated_audio, uploaded_mid, is_generated_audio_playing 
+    x, y = pos
+
+    if pygame.mixer.get_busy() and (
+        play_generated_button.collidepoint(x, y) or
+        upload_button.collidepoint(x, y) or
+        download_button.collidepoint(x, y)
+    ):
+        return
+
+    if cancel_generated_button.collidepoint(x, y) and pygame.mixer.get_busy():
+        pygame.mixer.stop()
+        is_generated_audio_playing = False
+        update_status("Playback stopped", reset_after_seconds=4)
+        return
+
+    if handle_style_selection(pos):
+        return
+            
+
+    if play_generated_button.collidepoint(x, y):
+        try:
+            if generated_audio is not None:
+                mono = (generated_audio * 32767).astype(np.int16)
+                stereo = np.stack([mono, mono], axis=1)
+                sound = pygame.sndarray.make_sound(stereo)
+                sound.play()
+                is_generated_audio_playing = True
+                update_status("Playing generated audio", reset_after_seconds=5)
+            else:
+                update_status("No generated audio to play", reset_after_seconds=4)
+        except Exception as e:
+            update_status(f"Play error: {e}", reset_after_seconds=4)
+
+    elif play_button.collidepoint(x, y):
         if playbar_x is None:
             playbar_x = get_fixed_col_x()
             last_update_time = time.time()
             play_column(0)
         is_playing = True
+
     elif stop_button.collidepoint(x, y):
         is_playing = False
-    elif clear_button.collidepoint(x, y):
 
+    elif clear_button.collidepoint(x, y):
         is_playing = False
         for r in range(GRID_ROWS):
             for c in range(slider_columns):
                 grid[r][c] = 0
         playbar_x = None
+
     elif slider_columns_box.collidepoint(x, y):
         dragging_slider = "columns"
+
     elif slider_bps_box.collidepoint(x, y):
         dragging_slider = "bps"
-        grid = [[0 for _ in range(slider_columns)] for _ in range(GRID_ROWS)]
-    elif slider_columns_box.collidepoint(x, y):  
-        slider_columns = SLIDER_MIN_COLUMNS + int((x - 650) / 300 * (SLIDER_MAX_COLUMNS - SLIDER_MIN_COLUMNS))
-        slider_columns = max(SLIDER_MIN_COLUMNS, min(SLIDER_MAX_COLUMNS, slider_columns))
-        update_grid_size(slider_columns)
-    elif slider_bps_box.collidepoint(x, y):
-        slider_bps = SLIDER_MIN_BPS + int((x - 650) / 300 * (SLIDER_MAX_BPS - SLIDER_MIN_BPS))
-        slider_bps = max(SLIDER_MIN_BPS, min(SLIDER_MAX_BPS, slider_bps))
-        bps = slider_bps
-        playbar_interval = 1 / bps
-        
+
     elif upload_button.collidepoint(x, y):
         upload_midi()
+
     elif download_button.collidepoint(x, y):
         download_audio()
+
     else:
         fixed_col_x = get_fixed_col_x()
         top_offset = (HEIGHT - GRID_ROWS * CELL_SIZE - 160) // 2
@@ -264,13 +406,17 @@ def handle_mouse_click(pos):
             grid[row][col] = 1 - grid[row][col]
 
 def main():
-    global playbar_x, last_update_time, is_playing, slider_columns, slider_bps, bps, playbar_interval, dragging_slider, status_reset_delay
+    global playbar_x, last_update_time, is_playing, slider_columns, slider_bps, bps, playbar_interval, dragging_slider, status_reset_delay,\
+            file_browser_active,file_browser_scroll, current_dir,generated_audio,uploaded_midi,is_generated_audio_playing 
+            
     running = True
     while running:
         screen.blit(background_image, (0, 0))
         col = (playbar_x - get_fixed_col_x()) // CELL_SIZE if playbar_x is not None else None
         draw_grid(col)
         draw_controls()
+        if file_browser_active:
+            draw_file_browser()
 
         if status_reset_delay and time.time() - status_last_update > status_reset_delay:
             update_status("Waiting for user action...")
@@ -290,8 +436,8 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                handle_mouse_click(event.pos)
+            # elif event.type == pygame.MOUSEBUTTONDOWN:
+            #     handle_mouse_click(event.pos)
             elif event.type == pygame.MOUSEBUTTONUP:
                 dragging_slider = None
             elif event.type == pygame.MOUSEMOTION and dragging_slider:
@@ -303,6 +449,56 @@ def main():
                     slider_bps = max(SLIDER_MIN_BPS, min(SLIDER_MAX_BPS, SLIDER_MIN_BPS + int((x - 470) / 300 * (SLIDER_MAX_BPS - SLIDER_MIN_BPS))))
                     bps = slider_bps
                     playbar_interval = 1 / bps
+            elif event.type == pygame.MOUSEBUTTONDOWN and file_browser_active:
+                x, y = event.pos
+                if 120 <= x <= WIDTH - 100 and 180 <= y <= HEIGHT - 100:
+                    index = (y - 180) // 30 + file_browser_scroll
+                    try:
+                        items = ["../"] + sorted(os.listdir(current_dir))
+                        if 0 <= index < len(items):
+                            selected = items[index]
+                            selected_path = os.path.abspath(os.path.join(current_dir, selected))
+
+                            if selected == "../":
+                                parent_path = os.path.abspath(os.path.join(current_dir, ".."))
+                                if os.access(parent_path, os.R_OK):
+                                    current_dir = parent_path
+                                    file_browser_scroll = 0
+                                else:
+                                    update_status("Access denied to parent directory", reset_after_seconds=4)
+
+                            elif os.path.isdir(selected_path):
+                                if os.access(selected_path, os.R_OK):
+                                    current_dir = selected_path
+                                    file_browser_scroll = 0
+                                else:
+                                    update_status(f"Access denied to: {selected}", reset_after_seconds=4)
+
+                            elif selected.endswith(".mid"):
+                                if os.access(selected_path, os.R_OK):
+                                    notes = parse_midi(selected_path)
+                                    generated_audio = generate_audio(notes)
+                                    # sound = pygame.mixer.Sound(
+                                    #     buffer=(generated_audio * 32767).astype(np.int16).tobytes())
+                                    # sound.play()
+                                    uploaded_midi = selected_path
+                                    update_status(f"{selected} loaded.")
+                                    file_browser_active = False
+                                else:
+                                    update_status(f"Cannot open file: {selected}", reset_after_seconds=4)
+                    except Exception as e:
+                        print(e)
+                        update_status(f"Access error: {str(e)}", reset_after_seconds=4)
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                handle_mouse_click(event.pos)
+
+            elif event.type == pygame.MOUSEWHEEL and file_browser_active:
+                try:
+                    max_items = len(["../"] + sorted(os.listdir(current_dir)))
+                    file_browser_scroll = max(0, min(file_browser_scroll - event.y, max(0, max_items - 20)))
+                except:
+                    pass
 
         pygame.display.flip()
     pygame.quit()
