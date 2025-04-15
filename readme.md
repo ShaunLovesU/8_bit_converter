@@ -20,8 +20,8 @@
 ## 🛠️ Installation
 
 ```bash
-git clone https://github.com/yourusername/pixeltone.git
-cd pixeltone
+git clone https://github.com/ShaunLovesU/8_bit_converter.git
+cd 8_bit_converter
 pip install -r requirements.txt
 ```
 
