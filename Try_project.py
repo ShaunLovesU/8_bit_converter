@@ -10,10 +10,8 @@ from scipy.signal import butter, sosfilt
 from blackboard import parse_midi, generate_audio
 import os
 
-
 pygame.init()
 pygame.mixer.init()
-
 
 file_browser_active = False
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -57,7 +55,6 @@ playbar_interval = 1 / bps
 last_update_time = time.time()
 is_generated_audio_playing = False
 
-
 SLIDER_MIN_COLUMNS = 4
 SLIDER_MAX_COLUMNS = 32
 slider_columns = INITIAL_GRID_COLS
@@ -90,6 +87,7 @@ def generate_default_square_wave(freq, duration=0.3, sample_rate=44100):
     wave = 0.5 * (1 + np.sign(np.sin(2 * np.pi * freq * t)))
     return pygame.mixer.Sound(buffer=(wave * 32767).astype(np.int16).tobytes())
 
+
 def generate_gameboy_wave(freq, duration=0.3, sample_rate=44100):
     t = np.linspace(0, duration, int(sample_rate * duration), False)
     wave = 0.5 * (1 + np.sign(np.sin(2 * np.pi * freq * t)))
@@ -97,12 +95,14 @@ def generate_gameboy_wave(freq, duration=0.3, sample_rate=44100):
     wave *= envelope
     return pygame.mixer.Sound(buffer=(wave * 32767).astype(np.int16).tobytes())
 
+
 def generate_nes_triangle_wave(freq, duration=0.3, sample_rate=44100):
     t = np.linspace(0, duration, int(sample_rate * duration), False)
     wave = 2 * np.abs(2 * ((freq * t) % 1) - 1) - 1
     envelope = np.exp(-5 * t)
     wave *= envelope
     return pygame.mixer.Sound(buffer=(wave * 32767).astype(np.int16).tobytes())
+
 
 def regenerate_sounds():
     global SOUNDS
@@ -113,7 +113,9 @@ def regenerate_sounds():
     elif current_sound_style == "NES":
         SOUNDS = [generate_nes_triangle_wave(f) for f in FREQUENCIES]
 
+
 regenerate_sounds()
+
 
 def handle_style_selection(pos):
     global current_sound_style
@@ -131,12 +133,15 @@ def update_grid_size(new_cols):
     for r in range(GRID_ROWS):
         grid[r] = grid[r][:new_cols] + [0] * max(0, new_cols - len(grid[r]))
 
+
 def get_fixed_col_x():
     return int(WIDTH * FIXED_COL_X_RATIO)
+
 
 status_message = "Waiting for user action..."
 status_last_update = 0
 status_reset_delay = 0
+
 
 def update_status(new_status, reset_after_seconds=None):
     global status_message, status_last_update, status_reset_delay
@@ -144,11 +149,13 @@ def update_status(new_status, reset_after_seconds=None):
     status_last_update = time.time()
     status_reset_delay = reset_after_seconds if reset_after_seconds else 0
 
+
 def show_status_now(message):
     update_status(message)
     draw_controls()
     pygame.display.flip()
     pygame.time.wait(300)
+
 
 play_button = pygame.Rect(50, HEIGHT - 80, 100, 50)
 stop_button = pygame.Rect(170, HEIGHT - 80, 100, 50)
@@ -157,15 +164,16 @@ clear_button = pygame.Rect(290, HEIGHT - 80, 100, 50)
 slider_columns_box = pygame.Rect(490, HEIGHT - 80, 300, 10)
 slider_bps_box = pygame.Rect(480, HEIGHT - 40, 300, 10)
 
-
 button_w = 100
 button_h = 50
 gap = 20
-x_base = 1000
-play_generated_button = pygame.Rect(x_base + 0 * (button_w + gap), HEIGHT - 80, button_w, button_h)
-cancel_generated_button = pygame.Rect(x_base + 1 * (button_w + gap), HEIGHT - 80, button_w, button_h)
-upload_button = pygame.Rect(x_base + 2 * (button_w + gap), HEIGHT - 80, button_w, button_h)
-download_button = pygame.Rect(x_base + 3 * (button_w + gap), HEIGHT - 80, button_w, button_h)
+bottom_y = HEIGHT - 80
+base_x = WIDTH - (button_w + gap) * 4 - 40
+
+play_generated_button = pygame.Rect(base_x + 0 * (button_w + gap), bottom_y, button_w, button_h)
+cancel_generated_button = pygame.Rect(base_x - 0.4 * (button_w + gap), bottom_y, button_w, button_h)
+upload_button = pygame.Rect(base_x + 2 * (button_w + gap), bottom_y, button_w, button_h)
+download_button = pygame.Rect(base_x + 3 * (button_w + gap), bottom_y, button_w, button_h)
 
 slider_columns_box = pygame.Rect(470, HEIGHT - 80, 300, 10)
 slider_bps_box = pygame.Rect(470, HEIGHT - 40, 300, 10)
@@ -175,6 +183,7 @@ play_generated_button = pygame.Rect(1050, HEIGHT - 80, 80, 50)
 uploaded_midi = None
 generated_audio = None
 dragging_slider = None
+
 
 def draw_grid(play_col=None):
     fixed_col_x = get_fixed_col_x()
@@ -200,14 +209,17 @@ def draw_grid(play_col=None):
 
     screen.blit(grid_surface, (0, 0))
 
+
 def draw_button(rect, text, bg_color, text_color=BUTTON_TEXT, enabled=True):
     if not enabled:
         bg_color = (100, 100, 100)
         text_color = (180, 180, 180)
-    color = tuple(min(255, c + 30) for c in bg_color) if rect.collidepoint(pygame.mouse.get_pos()) and enabled else bg_color
+    color = tuple(min(255, c + 30) for c in bg_color) if rect.collidepoint(
+        pygame.mouse.get_pos()) and enabled else bg_color
     pygame.draw.rect(screen, color, rect, border_radius=10)
     label = font.render(text, True, text_color)
     screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+
 
 def draw_slider(x, y, width, value, min_val, max_val, label):
     pygame.draw.rect(screen, LIGHT_GRID, (x, y, width, 10), border_radius=5)
@@ -215,6 +227,7 @@ def draw_slider(x, y, width, value, min_val, max_val, label):
     pygame.draw.circle(screen, HIGHLIGHT_RGBA[:3], (knob_x, y + 5), 8)
     label_surf = font.render(f"{label}: {value}", True, BUTTON_TEXT)
     screen.blit(label_surf, (x + width + 20, y - 10))
+
 
 def draw_file_browser():
     global current_dir, file_browser_scroll
@@ -268,7 +281,7 @@ def draw_controls():
     draw_button(stop_button, "Stop", BUTTON_STOP)
     draw_button(clear_button, "Clear", BUTTON_CLEAR)
     if is_generated_audio_playing:
-        draw_button(cancel_generated_button, "Cancel", BUTTON_STOP, enabled=True)
+        draw_button(cancel_generated_button, "stop", BUTTON_STOP, enabled=True)
         draw_button(play_generated_button, "Play", BUTTON_PLAY, enabled=False)
         draw_button(upload_button, "Upload", BUTTON_UPLOAD, enabled=False)
         draw_button(download_button, "Save", BUTTON_DOWNLOAD, text_color=(200, 200, 200), enabled=False)
@@ -276,9 +289,9 @@ def draw_controls():
         draw_button(play_generated_button, "Play", BUTTON_PLAY)
         draw_button(upload_button, "Upload", BUTTON_UPLOAD)
         draw_button(download_button, "Save", BUTTON_DOWNLOAD, text_color=(20, 20, 20))
-        draw_button(cancel_generated_button, "Cancel", BUTTON_STOP, enabled=False)
+        draw_button(cancel_generated_button, "stop", BUTTON_STOP, enabled=False)
 
-    draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
+    draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Col")
     draw_slider(490, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
 
     status_text = small_font.render(status_message, True, BUTTON_TEXT)
@@ -288,44 +301,40 @@ def draw_controls():
 
     for i, rect in enumerate(style_buttons):
         style = SOUND_STYLES[i]
-        pygame.draw.rect(screen, BUTTON_SELECTED if style == current_sound_style else BUTTON_STYLE, rect, border_radius=6)
+        pygame.draw.rect(screen, BUTTON_SELECTED if style == current_sound_style else BUTTON_STYLE, rect,
+                         border_radius=6)
         label = small_font.render(style, True, BUTTON_TEXT)
         screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
 
-    
-        
-
-    draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
-    draw_slider(490, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
+    # draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
+    # draw_slider(490, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
 
     draw_button(upload_button, "Upload", BUTTON_UPLOAD)
     draw_button(download_button, "Download", BUTTON_DOWNLOAD, text_color=(20, 20, 20))
     draw_button(play_generated_button, "play", BUTTON_PLAY)
 
-    draw_slider(470, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
-    draw_slider(470, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
+    # draw_slider(470, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
+    # draw_slider(470, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
     status_text = small_font.render(status_message, True, BUTTON_TEXT)
     status_x = play_generated_button.x + 10
     status_y = play_generated_button.y - 25
     screen.blit(status_text, (status_x, status_y))
 
-
     for i, rect in enumerate(style_buttons):
         style = SOUND_STYLES[i]
-        pygame.draw.rect(screen, BUTTON_SELECTED if style == current_sound_style else BUTTON_STYLE, rect, border_radius=6)
+        pygame.draw.rect(screen, BUTTON_SELECTED if style == current_sound_style else BUTTON_STYLE, rect,
+                         border_radius=6)
         label = small_font.render(style, True, BUTTON_TEXT)
         screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
 
-        
+
 def upload_midi():
     global file_browser_active
     file_browser_active = True
 
 
-
-
 def download_audio():
-    global current_dir, uploaded_midi,generated_audio
+    global current_dir, uploaded_midi, generated_audio
 
     if generated_audio is not None and uploaded_midi is not None:
 
@@ -348,14 +357,14 @@ def play_column(col):
 
 
 def handle_mouse_click(pos):
-    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style, generated_audio, uploaded_mid, is_generated_audio_playing 
-    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style,generated_audio
+    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style, generated_audio, uploaded_mid, is_generated_audio_playing
+    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style, generated_audio
     x, y = pos
 
     if pygame.mixer.get_busy() and (
-        play_generated_button.collidepoint(x, y) or
-        upload_button.collidepoint(x, y) or
-        download_button.collidepoint(x, y)
+            play_generated_button.collidepoint(x, y) or
+            upload_button.collidepoint(x, y) or
+            download_button.collidepoint(x, y)
     ):
         return
 
@@ -367,7 +376,7 @@ def handle_mouse_click(pos):
 
     if handle_style_selection(pos):
         return
-            
+
     if play_generated_button.collidepoint(x, y):
         try:
             if generated_audio is not None:
@@ -425,10 +434,9 @@ def handle_mouse_click(pos):
         if 0 <= row < GRID_ROWS and 0 <= col < slider_columns:
             grid[row][col] = 1 - grid[row][col]
 
+
 def main():
-    global playbar_x, last_update_time, is_playing, slider_columns, slider_bps, bps, playbar_interval, dragging_slider, status_reset_delay,\
-            file_browser_active,file_browser_scroll, current_dir,generated_audio,uploaded_midi,is_generated_audio_playing 
-            file_browser_active,file_browser_scroll, current_dir,generated_audio,uploaded_midi
+    global playbar_x, last_update_time, is_playing, slider_columns, slider_bps, bps, playbar_interval, dragging_slider, status_reset_delay, file_browser_active, file_browser_scroll, current_dir, generated_audio, uploaded_midi, is_generated_audio_playing, file_browser_active, file_browser_scroll, current_dir, generated_audio, uploaded_midi
     running = True
     while running:
         screen.blit(background_image, (0, 0))
@@ -463,10 +471,12 @@ def main():
             elif event.type == pygame.MOUSEMOTION and dragging_slider:
                 x = event.pos[0]
                 if dragging_slider == "columns":
-                    slider_columns = max(SLIDER_MIN_COLUMNS, min(SLIDER_MAX_COLUMNS, SLIDER_MIN_COLUMNS + int((x - 470) / 300 * (SLIDER_MAX_COLUMNS - SLIDER_MIN_COLUMNS))))
+                    slider_columns = max(SLIDER_MIN_COLUMNS, min(SLIDER_MAX_COLUMNS, SLIDER_MIN_COLUMNS + int(
+                        (x - 470) / 300 * (SLIDER_MAX_COLUMNS - SLIDER_MIN_COLUMNS))))
                     update_grid_size(slider_columns)
                 elif dragging_slider == "bps":
-                    slider_bps = max(SLIDER_MIN_BPS, min(SLIDER_MAX_BPS, SLIDER_MIN_BPS + int((x - 470) / 300 * (SLIDER_MAX_BPS - SLIDER_MIN_BPS))))
+                    slider_bps = max(SLIDER_MIN_BPS, min(SLIDER_MAX_BPS, SLIDER_MIN_BPS + int(
+                        (x - 470) / 300 * (SLIDER_MAX_BPS - SLIDER_MIN_BPS))))
                     bps = slider_bps
                     playbar_interval = 1 / bps
             elif event.type == pygame.MOUSEBUTTONDOWN and file_browser_active:
@@ -522,6 +532,7 @@ def main():
 
         pygame.display.flip()
     pygame.quit()
+
 
 if __name__ == "__main__":
     main()
