@@ -39,7 +39,6 @@ You can:
 - Draw notes on the grid and play them.
 - Adjust tempo (BPS) and column count with sliders.
 - Upload `.mid` files and convert them to 8-bit audio.
-- Export your retro sounds via the "Save" button.
 
 ---
 
