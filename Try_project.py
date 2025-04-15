@@ -1,3 +1,5 @@
+from distutils.command.upload import upload
+
 import pygame
 import time
 import numpy as np
@@ -151,6 +153,7 @@ def show_status_now(message):
 play_button = pygame.Rect(50, HEIGHT - 80, 100, 50)
 stop_button = pygame.Rect(170, HEIGHT - 80, 100, 50)
 clear_button = pygame.Rect(290, HEIGHT - 80, 100, 50)
+
 slider_columns_box = pygame.Rect(490, HEIGHT - 80, 300, 10)
 slider_bps_box = pygame.Rect(480, HEIGHT - 40, 300, 10)
 
@@ -164,6 +167,11 @@ cancel_generated_button = pygame.Rect(x_base + 1 * (button_w + gap), HEIGHT - 80
 upload_button = pygame.Rect(x_base + 2 * (button_w + gap), HEIGHT - 80, button_w, button_h)
 download_button = pygame.Rect(x_base + 3 * (button_w + gap), HEIGHT - 80, button_w, button_h)
 
+slider_columns_box = pygame.Rect(470, HEIGHT - 80, 300, 10)
+slider_bps_box = pygame.Rect(470, HEIGHT - 40, 300, 10)
+upload_button = pygame.Rect(1150, HEIGHT - 80, 130, 50)
+download_button = pygame.Rect(1300, HEIGHT - 80, 150, 50)
+play_generated_button = pygame.Rect(1050, HEIGHT - 80, 80, 50)
 uploaded_midi = None
 generated_audio = None
 dragging_slider = None
@@ -259,7 +267,6 @@ def draw_controls():
     draw_button(play_button, "Play", BUTTON_PLAY)
     draw_button(stop_button, "Stop", BUTTON_STOP)
     draw_button(clear_button, "Clear", BUTTON_CLEAR)
-
     if is_generated_audio_playing:
         draw_button(cancel_generated_button, "Cancel", BUTTON_STOP, enabled=True)
         draw_button(play_generated_button, "Play", BUTTON_PLAY, enabled=False)
@@ -291,6 +298,12 @@ def draw_controls():
     draw_slider(490, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
     draw_slider(490, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
 
+    draw_button(upload_button, "Upload", BUTTON_UPLOAD)
+    draw_button(download_button, "Download", BUTTON_DOWNLOAD, text_color=(20, 20, 20))
+    draw_button(play_generated_button, "play", BUTTON_PLAY)
+
+    draw_slider(470, HEIGHT - 80, 300, slider_columns, SLIDER_MIN_COLUMNS, SLIDER_MAX_COLUMNS, "Columns")
+    draw_slider(470, HEIGHT - 40, 300, slider_bps, SLIDER_MIN_BPS, SLIDER_MAX_BPS, "BPS")
     status_text = small_font.render(status_message, True, BUTTON_TEXT)
     status_x = play_generated_button.x + 10
     status_y = play_generated_button.y - 25
@@ -315,6 +328,7 @@ def download_audio():
     global current_dir, uploaded_midi,generated_audio
 
     if generated_audio is not None and uploaded_midi is not None:
+
         filename = os.path.splitext(os.path.basename(uploaded_midi))[0]
         save_path = os.path.join(current_dir, f"{filename}_converted.wav")
 
@@ -335,6 +349,7 @@ def play_column(col):
 
 def handle_mouse_click(pos):
     global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style, generated_audio, uploaded_mid, is_generated_audio_playing 
+    global is_playing, playbar_x, slider_columns, slider_bps, grid, bps, playbar_interval, dragging_slider, last_update_time, current_sound_style,generated_audio
     x, y = pos
 
     if pygame.mixer.get_busy() and (
@@ -353,15 +368,20 @@ def handle_mouse_click(pos):
     if handle_style_selection(pos):
         return
             
-
     if play_generated_button.collidepoint(x, y):
         try:
             if generated_audio is not None:
                 mono = (generated_audio * 32767).astype(np.int16)
+
                 stereo = np.stack([mono, mono], axis=1)
                 sound = pygame.sndarray.make_sound(stereo)
                 sound.play()
                 is_generated_audio_playing = True
+
+                stereo = np.stack([mono, mono], axis=1)  # shape: (samples, 2)
+                sound = pygame.sndarray.make_sound(stereo)
+                sound.play()
+
                 update_status("Playing generated audio", reset_after_seconds=5)
             else:
                 update_status("No generated audio to play", reset_after_seconds=4)
@@ -408,7 +428,7 @@ def handle_mouse_click(pos):
 def main():
     global playbar_x, last_update_time, is_playing, slider_columns, slider_bps, bps, playbar_interval, dragging_slider, status_reset_delay,\
             file_browser_active,file_browser_scroll, current_dir,generated_audio,uploaded_midi,is_generated_audio_playing 
-            
+            file_browser_active,file_browser_scroll, current_dir,generated_audio,uploaded_midi
     running = True
     while running:
         screen.blit(background_image, (0, 0))
